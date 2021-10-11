@@ -13,7 +13,7 @@ Users can access ELeFHAnt previous releases from Releases section of GitHub [htt
 ## Installation
 ```
 library(devtools)
-devtools::install_github('praneet1988/ELeFHAnt')
+devtools::install_github('CuSTOM-Bio/ELeFHAnt')
 library(ELeFHAnt)
 ```
 ```
