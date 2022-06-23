@@ -7,33 +7,61 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r, include = FALSE}
+```{r, include = FALSE, results = FALSE, message = FALSE, warning = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  fig.width=10,
+  fig.height=10
 )
 ```
 
 ```{r setup}
 library(ELeFHAnt)
 ```
-# ELeFHAnt
-##### Ensemble Learning for Harmonization and Annotation of Single Cells (ELeFHAnt) provides an easy to use interface for users to annotate clusters of single cells and harmonize labels across single cell datasets to generate a unified atlas. It provides users with a flexibility of choosing a machine learning based classifiers or let ELeFHAnt automatically use the power of robust classifiers like randomForest and SVM (Support Vector Machines) to make predictions. It has three functions 1) CelltypeAnnotation 2) LabelHarmonization 3) DeduceRelationship.
 
-## Random Forest
-##### Random Forests is a powerful tool used extensively across a multitude of field. It is based on generating a large number of decision trees, each constructed using a different subset of your training set. These subsets are usually selected by sampling at random and with replacement from the original data set. The decision trees are then used to identify a classification consensus by selecting the most common output.
+```{r Read Data}
+data("reference_PBMC")
+data("query_PBMC")
+reference = reference_PBMC
+query = query_PBMC
+query = NormalizeData(query)
+query = FindVariableFeatures(query)
+query = ScaleData(query)
+query = RunPCA(query)
+query = RunUMAP(query, dims = 1:20)
+```
 
-## SVM (Support Vector Machines)
-##### SVM is well-established supervised machine learning algorithm. Finds a hyperplane that separates data points into classes, where training occurs through “maximizing the margin”. Training time tends to be longer as data increases. SVM was ranked highly for cell annotation when benchmarked against other tools.
+```{r Celltype Annotation}
+###### Downsample is set to FALSE as number of cells in reference / query have already been downsampled ########
+out.CelltypeAnnotation = CelltypeAnnotation(reference = reference, query = query, downsample = FALSE, classification.method = "Ensemble", validatePredictions = FALSE)
+query$Celltypes = out.CelltypeAnnotation$PredictedCelltype_UsingEnsemble
+p1 = DimPlot(out.CelltypeAnnotation, group.by = "seurat_clusters", label = T, reduction = "umap", label.size = 6, repel = T) + NoLegend()
+p2 = DimPlot(out.CelltypeAnnotation, group.by = "PredictedCelltype_UsingEnsemble", label = T, reduction = "umap", label.size = 6, repel = T) + NoLegend()
+p1+p2
+```
 
-## Ensemble Learning
-##### ELeFHAnt provides users to use ensemble learning for clssifying celltypes for un-annotated cells. In this mode ELeFHAnt uses the clssification accuracy of both Random forest and SVM. It does this by adding weights to the predictions by each classifier. Weights are accuracy that each classifier exhibited during the learning process.
+```{r Label Harmonization}
+###### Downsample is set to FALSE as number of cells in reference / query have already been downsampled ########
+out.LabelHarmonization = LabelHarmonization(seurat.objects = c(reference, query), perform_integration = TRUE, downsample = FALSE, classification.method = "Ensemble", validatePredictions = FALSE)
+p1 = DimPlot(out.LabelHarmonization, group.by = "Celltypes", label = T, label.size = 6, repel = T) + NoLegend()
+p2 = DimPlot(out.LabelHarmonization, group.by = "HarmonizedLabels_UsingEnsemble", label = T, label.size = 6, repel = T) + NoLegend()
+p1+p2
+```
 
-## Celltype Annotation Function
-##### Celltype annotation is a function to annotate celltypes in a single cell datasets. It requires a reference dataset (a processed Seurat Object with Celltypes column in metadata) and a query dataset (a processed seurat object with seurat_clusters column in metadata). One can choose from randomForest, SVM or Ensemble classifiction method to learn celltypes from reference dataset and then predict celltypes for query dataset.
+```{r Deduce Relationship}
+###### Downsample is set to FALSE as number of cells in reference / query have already been downsampled ########
+query_DR = query
+query_DR$Celltypes = query$seurat_clusters
+out.DR = DeduceRelationship(reference1 = reference, reference2 = query_DR, downsample = FALSE, classification.method = "Ensemble")
+out.DR
+```
 
-## Label Harmonization Function
-##### Label Harmonization is a function to harmonize cell labels (celltypes) across single cell datasets. It requires a list of processed Seurat Objects with Celltypes column in metadata or a integrated seurat object (seurat object with Celltypes and seurat_clusters column in metadata). One can choose from randomForest, SVM or Ensemble classifiction method.
-
-## Deduce Relationship Function
-##### Deduce Relationship is a function that hels deduce relationships among celltypes between two datasets. It requires two datasets (both processed Seurat Objects with Celltypes column in metadata). One can choose from randomForest, SVM or Ensemble classifiction method to obtain relationships among celltypes. Function outputs a heatmap with celltypes from dataset1 as rows and celltypes from dataset2 as columns.
+```{r Benchmark ELeFHAnt}
+###### Downsample is set to FALSE as number of cells in reference / query have already been downsampled ########
+out.Benchmark = BenchmarkELeFHAnt(reference = reference, query = query, downsample = FALSE)
+p1 = DimPlot(out.Benchmark, group.by = "PredictedCelltype_UsingEnsemble", label=T, repel = T, label.size = 6) + NoLegend() + ggtitle("ELeFHAnt Predictions")
+p2 = DimPlot(out.Benchmark, group.by = "predicted.id", label=T, repel = T, label.size = 6) + NoLegend() + ggtitle("LabelTransfer Predictions")
+p3 = DimPlot(out.Benchmark, group.by = "scpred_prediction", label=T, repel = T, label.size = 6) + NoLegend() + ggtitle("scPred Predictions")
+p1+p2+p3
+```
